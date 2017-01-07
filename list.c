@@ -25,13 +25,20 @@ llist_t *list_new()
  * list_add inserts a new node with the given value val in the list
  * (if the value was absent) or does nothing (if the value is already present).
  */
-int list_add(llist_t *list, val_t val)
+llist_t *list_add(llist_t *list, val_t val)
 {
+    //check if value already exist
+    node_t *cur = list->head;
+    while(cur) {
+        if(cur-> data == val) return list;
+        cur = cur->next;
+    }
+    //add to the head of the list
     node_t *e = node_new(val, NULL);
     e->next = list->head;
     list->head = e;
     list->size++;
-    return 0;
+    return list;
 }
 
 /*
@@ -40,12 +47,13 @@ int list_add(llist_t *list, val_t val)
  */
 node_t *list_nth(llist_t *list, uint32_t idx)
 {
-    if (idx > list->size)
-        return NULL;
-    node_t *head = list->head;
+    if(idx > list->size-1) return NULL;
+
+    node_t *cur = list->head;
+    if(idx == 0) return cur;
     while (idx--)
-        head = head->next;
-    return head;
+        cur = cur->next;
+    return cur;
 }
 
 void list_print(llist_t *list)

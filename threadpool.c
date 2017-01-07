@@ -1,5 +1,5 @@
 #include "threadpool.h"
-
+#include <stdio.h>
 int task_free(task_t *the_task)
 {
     free(the_task->arg);
@@ -9,6 +9,7 @@ int task_free(task_t *the_task)
 
 int tqueue_init(tqueue_t *the_queue)
 {
+//    if((the_queue = (tqueue_t *)malloc(sizeof(tqueue_t)) == NULL)) return -1;
     the_queue->head = NULL;
     the_queue->tail = NULL;
     pthread_mutex_init(&(the_queue->mutex), NULL);
@@ -21,13 +22,13 @@ task_t *tqueue_pop(tqueue_t *the_queue)
 {
     task_t *ret;
     pthread_mutex_lock(&(the_queue->mutex));
-    ret = the_queue->tail;
+    ret = the_queue->head;
     if (ret) {
-        the_queue->tail = ret->last;
-        if (the_queue->tail) {
-            the_queue->tail->next = NULL;
+        the_queue->head = ret->next;//if it is NULL, then let it be
+        if (the_queue->head) {
+            the_queue->head->last = NULL;
         } else {
-            the_queue->head = NULL;
+            the_queue->tail = NULL;
         }
         the_queue->size--;
     }
@@ -46,20 +47,22 @@ uint32_t tqueue_size(tqueue_t *the_queue)
 
 int tqueue_push(tqueue_t *the_queue, task_t *task)
 {
+    if(task == NULL) return -1;
     pthread_mutex_lock(&(the_queue->mutex));
-    task->last = NULL;
-    task->next = the_queue->head;
-    if (the_queue->head)
-        the_queue->head->last = task;
-    the_queue->head = task;
+    task->next = NULL;
+    task->last = the_queue->tail;
+    if (the_queue->tail)
+        the_queue->tail->next = task;
+    the_queue->tail = task; //only one task in queue
     if (the_queue->size++ == 0)
-        the_queue->tail = task;
+        the_queue->head = task;//only one task in queue
     pthread_mutex_unlock(&(the_queue->mutex));
     return 0;
 }
 
 int tqueue_free(tqueue_t *the_queue)
 {
+    if(the_queue == NULL) return -1;
     task_t *cur = the_queue->head;
     while (cur) {
         the_queue->head = the_queue->head->next;
@@ -67,6 +70,7 @@ int tqueue_free(tqueue_t *the_queue)
         cur = the_queue->head;
     }
     pthread_mutex_destroy(&(the_queue->mutex));
+    pthread_cond_destroy(&(the_queue->cond));
     return 0;
 }
 
@@ -87,8 +91,9 @@ int tpool_init(tpool_t *the_pool, uint32_t tcount, void *(*func)(void *))
 
 int tpool_free(tpool_t *the_pool)
 {
+    if(the_pool == NULL) return -1;
     for (uint32_t i = 0; i < the_pool->count; ++i)
-        pthread_join(the_pool->threads[i], NULL);
+        if(pthread_join(the_pool->threads[i], NULL) != 0) return -1;
     free(the_pool->threads);
     tqueue_free(the_pool->queue);
     return 0;
