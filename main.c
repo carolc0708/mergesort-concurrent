@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "threadpool.h"
 #include "list.h"
 
 #define USAGE "usage: ./sort [thread_count] [input_count]\n"
+
+#if defined(BENCH)
+struct timespec start, end;
+double cpu_time;
+#endif
 
 struct {
     pthread_mutex_t mutex;
@@ -17,6 +23,21 @@ static llist_t *the_list = NULL;
 
 static int thread_count = 0, data_count = 0, max_cut = 0;
 static tpool_t *pool = NULL;
+
+#if defined(BENCH)
+static double diff_in_second(struct timespec t1, struct timespec t2)
+{
+    struct timespec diff;
+    if (t2.tv_nsec-t1.tv_nsec < 0) {
+        diff.tv_sec  = t2.tv_sec - t1.tv_sec - 1;
+        diff.tv_nsec = t2.tv_nsec - t1.tv_nsec + 1000000000;
+    } else {
+        diff.tv_sec  = t2.tv_sec - t1.tv_sec;
+        diff.tv_nsec = t2.tv_nsec - t1.tv_nsec;
+    }
+    return (diff.tv_sec + diff.tv_nsec / 1000000000.0);
+}
+#endif
 
 llist_t *merge_list(llist_t *a, llist_t *b)
 {
@@ -88,12 +109,14 @@ void merge(void *data)//merge the cross level list
         }
     } else {//terminal state: _list->size = data_count
         the_list = _list;
-
+#if defined(BENCH)
+        clock_gettime(CLOCK_REALTIME, &end);
+        cpu_time = diff_in_second(start,end);
+#endif
         task_t *_task = (task_t *) malloc(sizeof(task_t));
         _task->func = NULL;
         tqueue_push(pool->queue, _task);
-
-        list_print(_list);
+//        list_print(_list);
     }
 }
 
@@ -172,16 +195,21 @@ int main(int argc, char const *argv[])
 
     /* Read data */
     the_list = list_new();
-
-    /* FIXME: remove all all occurrences of printf and scanf
-     * in favor of automated test flow.
-     */
+#if defined(BENCH)
+    FILE *fp = fopen("input","r");
+    long int data;
+    while((fscanf(fp,"%ld\n", &data)) != EOF) {
+        list_add(the_list, data);
+    }
+    fclose(fp);
+#else
     printf("input unsorted data line-by-line\n");
     for (int i = 0; i < data_count; ++i) {
         long int data;
         scanf("%ld", &data);
         list_add(the_list, data);
     }
+#endif
 
     /* initialize tasks inside thread pool */
     pthread_mutex_init(&(data_context.mutex), NULL);
@@ -190,6 +218,11 @@ int main(int argc, char const *argv[])
     tmp_list = NULL;
     pool = (tpool_t *) malloc(sizeof(tpool_t));
     tpool_init(pool, thread_count, task_run);
+
+#if defined(BENCH)
+    clock_gettime(CLOCK_REALTIME, &start);
+#endif
+
     /* launch the first task */
     task_t *_task = (task_t *) malloc(sizeof(task_t));
     _task->func = cut_func;
@@ -197,5 +230,16 @@ int main(int argc, char const *argv[])
     tqueue_push(pool->queue, _task);
     /* release thread pool */
     tpool_free(pool);
+
+#if defined(BENCH)
+    fp = fopen("output","a+");
+    if(thread_count == 1) fprintf(fp, "%d,", data_count);
+    fprintf(fp, "%lf", cpu_time);
+    if(thread_count == 64) fprintf(fp, "\n");
+    else fprintf(fp,",");
+    fclose(fp);
+    printf("%d %d %lf\n", data_count, thread_count, cpu_time);
+#endif
+
     return 0;
 }

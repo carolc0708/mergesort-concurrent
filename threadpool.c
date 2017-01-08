@@ -1,5 +1,5 @@
 #include "threadpool.h"
-#include <stdio.h>
+
 int task_free(task_t *the_task)
 {
     free(the_task->arg);
