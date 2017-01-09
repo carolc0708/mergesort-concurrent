@@ -1,14 +1,10 @@
 CC = gcc
-CFLAGS = -std=gnu99 -Wall -g -pthread -DBENCH
+CFLAGS = -std=gnu99 -Wall -g -pthread 
 OBJS = list.o threadpool.o main.o
 
 .PHONY: all clean test
 
 GIT_HOOKS := .git/hooks/pre-commit
-
-ifeq ($(strip $(BENCH)),1)
-CFLAGS += -DBENCH
-endif
 
 all: $(GIT_HOOKS) sort
 
@@ -23,11 +19,13 @@ deps := $(OBJS:%.o=.%.o.d)
 sort: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) -rdynamic
 
+input_generator: CFLAGS += -DBENCH
+
 input_generator: all 
 	$(CC) $(CFLAGS) input_generator.c -o input_generator
 
 bench: input_generator
-	for i in `seq 100 100 800`; do \
+	for i in `seq 1 1 200`; do \
 		./input_generator $$i; \
 		for j in 1 2 4 8 16 32 64; do \
 			./sort $$j $$i; \
