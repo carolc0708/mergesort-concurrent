@@ -116,7 +116,8 @@ void merge(void *data)//merge the cross level list
         task_t *_task = (task_t *) malloc(sizeof(task_t));
         _task->func = NULL;
         tqueue_push(pool->queue, _task);
-//        list_print(_list);
+        //print result
+        //list_print(_list);
     }
 }
 
@@ -166,7 +167,18 @@ static void *task_run(void *data)
 {
     (void) data;
     while (1) {
+#if defined(MONITOR)
+        pthread_mutex_lock(&(pool->queue->mutex));
+
+        while( pool->queue->size == 0) {
+            pthread_cond_wait(&(pool->queue->cond), &(pool->queue->mutex));
+        }
+        if (pool->queue->size == 0) break;
+#endif
         task_t *_task = tqueue_pop(pool->queue);
+#if defined(MONITOR)
+        pthread_mutex_unlock(&(pool->queue->mutex));
+#endif
         if (_task) {
             if (!_task->func) {//if function does not exist, push task back to queue
                 tqueue_push(pool->queue, _task);

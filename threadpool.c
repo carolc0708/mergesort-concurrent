@@ -21,7 +21,9 @@ int tqueue_init(tqueue_t *the_queue)
 task_t *tqueue_pop(tqueue_t *the_queue)
 {
     task_t *ret;
+#ifndef MONITOR
     pthread_mutex_lock(&(the_queue->mutex));
+#endif
     ret = the_queue->head;
     if (ret) {
         the_queue->head = ret->next;//if it is NULL, then let it be
@@ -32,7 +34,9 @@ task_t *tqueue_pop(tqueue_t *the_queue)
         }
         the_queue->size--;
     }
+#ifndef MONITOR
     pthread_mutex_unlock(&(the_queue->mutex));
+#endif
     return ret;
 }
 
@@ -47,7 +51,9 @@ uint32_t tqueue_size(tqueue_t *the_queue)
 
 int tqueue_push(tqueue_t *the_queue, task_t *task)
 {
+#ifndef MONITOR
     if(task == NULL) return -1;
+#endif
     pthread_mutex_lock(&(the_queue->mutex));
     task->next = NULL;
     task->last = the_queue->tail;
@@ -56,6 +62,9 @@ int tqueue_push(tqueue_t *the_queue, task_t *task)
     the_queue->tail = task; //only one task in queue
     if (the_queue->size++ == 0)
         the_queue->head = task;//only one task in queue
+#if defined(MONITOR)
+    pthread_cond_signal(&(the_queue->cond));
+#endif
     pthread_mutex_unlock(&(the_queue->mutex));
     return 0;
 }
@@ -69,6 +78,9 @@ int tqueue_free(tqueue_t *the_queue)
         free(cur);
         cur = the_queue->head;
     }
+#if defined(MONITOR)
+    pthread_mutex_lock(&(the_queue->mutex));
+#endif
     pthread_mutex_destroy(&(the_queue->mutex));
     pthread_cond_destroy(&(the_queue->cond));
     return 0;
@@ -91,6 +103,11 @@ int tpool_init(tpool_t *the_pool, uint32_t tcount, void *(*func)(void *))
 
 int tpool_free(tpool_t *the_pool)
 {
+#if defined(MONITOR)
+    pthread_cond_broadcast(&(the_pool->queue->cond));
+    pthread_mutex_unlock(&(the_pool->queue->mutex));
+#endif
+
     if(the_pool == NULL) return -1;
     for (uint32_t i = 0; i < the_pool->count; ++i)
         if(pthread_join(the_pool->threads[i], NULL) != 0) return -1;

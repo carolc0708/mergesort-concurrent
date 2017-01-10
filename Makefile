@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=gnu99 -Wall -g -pthread 
+CFLAGS = -std=gnu99 -Wall -g -pthread -DMONITOR -DBENCH 
 OBJS = list.o threadpool.o main.o
 
 .PHONY: all clean test
